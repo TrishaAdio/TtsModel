@@ -49,6 +49,11 @@ SKIP_ASR="${SKIP_ASR:-0}"          # 1 = reuse an existing .list (skip transcrip
 DATASET_DIR="$(readlink -f "$DATASET_DIR")"
 PY="python"
 PM="GPT_SoVITS/pretrained_models"
+
+# GPT-SoVITS subprocess scripts (tools.*, GPT_SoVITS.*) import relative to the
+# repo root. The WebUI puts it on sys.path via a .pth file; headless we set it
+# explicitly. This script must be run FROM the GPT-SoVITS repo root.
+export PYTHONPATH="$(pwd):${PYTHONPATH:-}"
 EXP_DIR="logs/${EXP_NAME}"
 
 # pretrained model paths for the chosen version (v2 defaults)
