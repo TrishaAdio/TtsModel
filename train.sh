@@ -43,6 +43,8 @@ GPT_BS="${GPT_BS:-4}"
 SAVE_EVERY="${SAVE_EVERY:-4}"
 ASR_SIZE="${ASR_SIZE:-large-v3}"
 ASR_PREC="${ASR_PREC:-float16}"
+ASR_DEVICE="${ASR_DEVICE:-auto}"   # auto|cpu  (use cpu if ctranslate2 lacks sm_120)
+SKIP_ASR="${SKIP_ASR:-0}"          # 1 = reuse an existing .list (skip transcription)
 
 DATASET_DIR="$(readlink -f "$DATASET_DIR")"
 PY="python"
@@ -76,11 +78,22 @@ mkdir -p "$EXP_DIR" output/asr_opt tmp
 
 # ---- 0) ASR: transcribe clips into a .list file ---------------------------
 LIST="output/asr_opt/$(basename "$DATASET_DIR").list"
-echo "[0/4] ASR transcription -> $LIST"
-"$PY" -s tools/asr/fasterwhisper_asr.py \
-  -i "$DATASET_DIR" -o output/asr_opt -s "$ASR_SIZE" -l "$LANG" -p "$ASR_PREC"
-test -s "$LIST" || { echo "ASR produced no list file"; exit 1; }
-echo "      transcribed $(wc -l < "$LIST") lines"
+if [ "$SKIP_ASR" = "1" ] && [ -s "$LIST" ]; then
+  echo "[0/4] ASR skipped, reusing $LIST ($(wc -l < "$LIST") lines)"
+else
+  echo "[0/4] ASR transcription -> $LIST  (device=$ASR_DEVICE)"
+  ASR_ENV=()
+  ASR_PREC_EFF="$ASR_PREC"
+  if [ "$ASR_DEVICE" = "cpu" ]; then
+    # force CPU (ctranslate2 on Blackwell often has no sm_120 kernels)
+    ASR_ENV=(env CUDA_VISIBLE_DEVICES=)
+    [ "$ASR_PREC" = "float16" ] && ASR_PREC_EFF="int8"   # CPU can't do fp16
+  fi
+  "${ASR_ENV[@]}" "$PY" -s tools/asr/fasterwhisper_asr.py \
+    -i "$DATASET_DIR" -o output/asr_opt -s "$ASR_SIZE" -l "$LANG" -p "$ASR_PREC_EFF"
+  test -s "$LIST" || { echo "ASR produced no list file"; exit 1; }
+  echo "      transcribed $(wc -l < "$LIST") lines"
+fi
 
 export inp_text="$LIST"
 export inp_wav_dir="$DATASET_DIR"
