@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Audio data (don't commit the dataset / models)
+data/raw/
+data/dataset/
+*.wav
+*.ogg
+*.mp3
+*.flac
+*.m4a
+
+# Model checkpoints / logs
+*.ckpt
+*.pth
+*.pt
+logs/
+runs/
+output/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

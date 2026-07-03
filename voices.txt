@@ -1,0 +1,21 @@
+# Source voice clips (one URL per line). Blank lines and #comments are ignored.
+# These are the 19 hosted clips used as the training dataset.
+https://karn.lol/i/d8f68a5d8eaffd14a1d2f3b9.ogg
+https://karn.lol/i/1183b1821af51b855dc26fac.ogg
+https://karn.lol/i/d070e88d4c973d09c0cb30f0.ogg
+https://karn.lol/i/3f19fa15c06c78b34894ef70.ogg
+https://karn.lol/i/7e68fde28bbd5fd26b7fca19.ogg
+https://karn.lol/i/b69036c1becd56f8157d61a4.ogg
+https://karn.lol/i/5f90b25c404b57d95750937a.ogg
+https://karn.lol/i/9d07e201c0fa652515c7a6c1.ogg
+https://karn.lol/i/9597797911a1bf2cc95d8e73.ogg
+https://karn.lol/i/d1246a6482637863573c6240.ogg
+https://karn.lol/i/8bf49a3b57083ee038d1f3b2.ogg
+https://karn.lol/i/54099daf1bafd155894ae1fb.ogg
+https://karn.lol/i/0f7c40ed9e7cb648fe82d70a.ogg
+https://karn.lol/i/1605eb3826dff54860cfdf1b.ogg
+https://karn.lol/i/c6bca5935fcd1811d51cf5cb.ogg
+https://karn.lol/i/5ec5ede3571301be64ad7097.ogg
+https://karn.lol/i/5d85c281da5d90c439526032.ogg
+https://karn.lol/i/54ed764a5c866212c9e1703d.ogg
+https://karn.lol/i/4585723b8a14649a971235db.ogg

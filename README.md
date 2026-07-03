@@ -1,0 +1,70 @@
+# voice-model-training
+
+Fine-tune a natural-sounding voice model (GPT-SoVITS) from your own voice clips
+and serve it over an API your AI can call. Colored CLI via `colorama`.
+Optimized for a Linux GPU VPS — including Blackwell / RTX 50-series.
+
+## Why GPT-SoVITS
+Purpose-built for high-similarity, natural cloning from small data. With a
+clean ~20–30 min dataset you get output that closely matches the source speaker
+and avoids the "robotic" quality of lightweight TTS.
+
+## Layout
+```
+voice-model-training/
+├── voices.txt              # source clip URLs (one per line)
+├── requirements.txt        # CLI/pipeline deps (colorama, requests, pydub, ...)
+├── src/
+│   ├── console.py          # colorama output helpers
+│   ├── download_dataset.py # fetch clips from voices.txt -> data/raw/
+│   ├── prepare_dataset.py  # slice + clean -> data/dataset/speaker1/
+│   ├── tts_client.py       # call the trained voice from your AI
+│   └── bot.py              # Telegram bot: text in -> voice note out (api_v2)
+├── docs/
+│   ├── SETUP_VPS.md        # install GPT-SoVITS + correct PyTorch for your GPU
+│   └── TRAINING.md         # step-by-step training tuned for a small dataset
+└── data/                   # raw/ and dataset/ (gitignored)
+```
+
+## Quick start
+```bash
+pip install -r requirements.txt
+sudo apt-get install -y ffmpeg
+
+# 1) download the source clips
+python src/download_dataset.py
+
+# 2) slice + clean into training segments
+python src/prepare_dataset.py --input-dir data/raw --output data/dataset/speaker1
+
+# 3) on the GPU VPS: install + train  (docs/SETUP_VPS.md, docs/TRAINING.md)
+# 4) serve + integrate                (src/tts_client.py)
+```
+
+## Telegram bot
+After the model is fine-tuned and the GPT-SoVITS API is running, run a bot that
+turns any text you send into a voice note in the trained voice:
+```bash
+pip install "aiogram>=3.0"      # and ensure ffmpeg is installed
+export BOT_TOKEN="123456:ABC..."   # the ONLY required setting
+# optional (defaults shown):
+# export TTS_BASE_URL="http://127.0.0.1:9880"
+# export REF_AUDIO_PATH="data/dataset/speaker1/seg_0007.wav"
+# export REF_TEXT="exact transcript of that clip"
+# export GPT_WEIGHTS="/path/speaker1-e15.ckpt"
+# export SOVITS_WEIGHTS="/path/speaker1_e10_s....pth"
+# export ALLOWED_USER_IDS="11111111,22222222"   # restrict who can use it
+python src/bot.py
+```
+Send the bot text -> it replies with a voice note (OGG/Opus) spoken in your
+cloned voice.
+
+## Pipeline
+1. **Download** — `download_dataset.py` pulls every URL in `voices.txt`.
+2. **Prepare** — `prepare_dataset.py` converts to mono 32 kHz and slices on
+   silence into 3–10s utterances.
+3. **Train** — GPT-SoVITS WebUI: ASR-label → format → train SoVITS + GPT.
+4. **Serve** — `api_v2.py` + `tts_client.py` wired into your AI.
+
+> Only clone voices you own or have explicit permission to use, and disclose
+> synthetic speech where appropriate.

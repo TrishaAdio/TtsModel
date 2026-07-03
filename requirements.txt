@@ -1,0 +1,14 @@
+# CLI / pipeline dependencies (CPU-friendly; run anywhere for prep + download).
+colorama>=0.4.6
+requests>=2.31.0
+pydub>=0.25.1
+soundfile>=0.12.1
+numpy>=1.24
+# Optional denoise (only if you pass --denoise):
+noisereduce>=3.0.0
+# Telegram bot (src/bot.py). Needs ffmpeg on PATH for OGG/Opus voice notes.
+aiogram>=3.0
+
+# NOTE: PyTorch + GPT-SoVITS are installed separately on the GPU box.
+# See docs/SETUP_VPS.md — the correct torch wheel depends on your GPU
+# (Blackwell/RTX 50xx needs cu128).
