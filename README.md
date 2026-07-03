@@ -20,9 +20,11 @@ voice-model-training/
 │   ├── prepare_dataset.py  # slice + clean -> data/dataset/speaker1/
 │   ├── tts_client.py       # call the trained voice from your AI
 │   └── bot.py              # Telegram bot: text in -> voice note out (api_v2)
+├── train.sh                # headless training (no WebUI / no open ports)
 ├── docs/
 │   ├── SETUP_VPS.md        # install GPT-SoVITS + correct PyTorch for your GPU
-│   └── TRAINING.md         # step-by-step training tuned for a small dataset
+│   ├── TRAINING.md         # WebUI training walkthrough
+│   └── HEADLESS.md         # CLI-only training + Hinglish/English notes
 └── data/                   # raw/ and dataset/ (gitignored)
 ```
 
@@ -40,6 +42,20 @@ python src/prepare_dataset.py --input-dir data/raw --output data/dataset/speaker
 # 3) on the GPU VPS: install + train  (docs/SETUP_VPS.md, docs/TRAINING.md)
 # 4) serve + integrate                (src/tts_client.py)
 ```
+
+## No open ports? Train headless
+If you can't use the WebUI (ports closed), run the whole thing from the CLI:
+```bash
+cp train.sh ~/GPT-SoVITS/ && cd ~/GPT-SoVITS && source .venv/bin/activate
+DATASET_DIR=~/TtsModel/data/dataset/speaker1 LANG=en ./train.sh
+```
+See `docs/HEADLESS.md` for the full walkthrough.
+
+## Language: Hinglish / English
+GPT-SoVITS v2 has no Hindi phonemizer, so run Hinglish through the **English**
+pipeline: `LANG=en` for training, `TEXT_LANG=en` for the bot, and type Hinglish
+in **Latin script**. The clone still reproduces the Hindi sounds acoustically
+from your clips. Details in `docs/HEADLESS.md`.
 
 ## Telegram bot
 After the model is fine-tuned and the GPT-SoVITS API is running, run a bot that
