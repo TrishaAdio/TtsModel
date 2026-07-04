@@ -72,6 +72,13 @@ S2D="${S2G/s2G/s2D}"
 BERT="$PM/chinese-roberta-wwm-ext-large"
 HUBERT="$PM/chinese-hubert-base"
 
+# Final-weight output dirs (v1 has no suffix; v2+ are versioned)
+if [ "$VERSION" = "v1" ]; then
+  SOVITS_WDIR="SoVITS_weights"; GPT_WDIR="GPT_weights"
+else
+  SOVITS_WDIR="SoVITS_weights_$VERSION"; GPT_WDIR="GPT_weights_$VERSION"
+fi
+
 echo "=============================================================="
 echo " Headless GPT-SoVITS training"
 echo "   exp:        $EXP_NAME  ($VERSION)"
@@ -81,7 +88,11 @@ echo "   SoVITS:     bs=$SOVITS_BS epochs=$SOVITS_EPOCHS"
 echo "   GPT:        bs=$GPT_BS epochs=$GPT_EPOCHS"
 echo "=============================================================="
 
-mkdir -p "$EXP_DIR" output/asr_opt tmp
+# Pre-create every output dir the trainers write to but do NOT create themselves.
+# (s2_train saves to $EXP_DIR/logs_s2_$VERSION and to the weight dirs via my_save,
+#  which does shutil.move without makedirs — the WebUI normally pre-creates these.)
+mkdir -p "$EXP_DIR" "$EXP_DIR/logs_s2_$VERSION" "$EXP_DIR/logs_s1_$VERSION" \
+         "$SOVITS_WDIR" "$GPT_WDIR" output/asr_opt tmp
 
 # ---- 0) ASR: transcribe clips into a .list file ---------------------------
 LIST="output/asr_opt/$(basename "$DATASET_DIR").list"
