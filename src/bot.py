@@ -55,6 +55,16 @@ TOP_K = int(os.getenv("TOP_K", "15"))
 TOP_P = float(os.getenv("TOP_P", "1.0"))
 SPEED = float(os.getenv("SPEED", "1.0"))
 
+# Output polish: ffmpeg filter chain applied to the generated audio before it
+# becomes a voice note. Removes low rumble, denoises hiss/air, and normalizes
+# loudness -> crisper, "crystal clear" result. Toggle with AUDIO_CLEANUP=0.
+AUDIO_CLEANUP = os.getenv("AUDIO_CLEANUP", "1") not in ("0", "false", "False", "no")
+AUDIO_FILTERS = os.getenv(
+    "AUDIO_FILTERS",
+    "highpass=f=85,afftdn=nf=-25,loudnorm=I=-16:TP=-1.5:LRA=11",
+)
+OPUS_BITRATE = os.getenv("OPUS_BITRATE", "64k")
+
 # Reference clip + its transcript (GPT-SoVITS needs these at inference time).
 # If REF_AUDIO_PATH isn't set, auto-pick the LONGEST prepared segment (a good
 # ~10s reference) -- never the first/shortest, which can make the model emit
@@ -130,15 +140,11 @@ def _discover_weights() -> tuple[str, str]:
 
 def wav_to_voice_ogg(wav_bytes: bytes) -> bytes:
     """Encode WAV bytes to OGG/Opus suitable for a Telegram voice note."""
-    proc = subprocess.run(
-        [
-            "ffmpeg", "-hide_banner", "-loglevel", "error",
-            "-i", "pipe:0",
-            "-c:a", "libopus", "-b:a", "48k", "-ar", "48000", "-ac", "1",
-            "-f", "ogg", "pipe:1",
-        ],
-        input=wav_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", "pipe:0"]
+    if AUDIO_CLEANUP and AUDIO_FILTERS:
+        cmd += ["-af", AUDIO_FILTERS]
+    cmd += ["-c:a", "libopus", "-b:a", OPUS_BITRATE, "-ar", "48000", "-ac", "1", "-f", "ogg", "pipe:1"]
+    proc = subprocess.run(cmd, input=wav_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if proc.returncode != 0 or not proc.stdout:
         raise RuntimeError(f"ffmpeg encode failed: {proc.stderr.decode(errors='ignore')[:400]}")
     return proc.stdout
