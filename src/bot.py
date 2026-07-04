@@ -47,6 +47,14 @@ TTS_BASE_URL = os.getenv("TTS_BASE_URL", "http://127.0.0.1:9880")
 TEXT_LANG = os.getenv("TEXT_LANG", "en")
 PROMPT_LANG = os.getenv("PROMPT_LANG", TEXT_LANG)
 
+# Sampling / segmentation knobs (env-overridable for quick tuning).
+# TEXT_SPLIT "cut0" = don't split -> one continuous utterance (no choppy restarts).
+TEXT_SPLIT = os.getenv("TEXT_SPLIT", "cut0").strip()
+TEMPERATURE = float(os.getenv("TEMPERATURE", "1.0"))
+TOP_K = int(os.getenv("TOP_K", "15"))
+TOP_P = float(os.getenv("TOP_P", "1.0"))
+SPEED = float(os.getenv("SPEED", "1.0"))
+
 # Reference clip + its transcript (GPT-SoVITS needs these at inference time).
 # If REF_AUDIO_PATH isn't set, auto-pick the LONGEST prepared segment (a good
 # ~10s reference) -- never the first/shortest, which can make the model emit
@@ -144,6 +152,11 @@ def build_tts() -> VoiceTTS:
         prompt_text=text,
         prompt_lang=PROMPT_LANG,
         text_lang=TEXT_LANG,
+        text_split_method=TEXT_SPLIT,
+        temperature=TEMPERATURE,
+        top_k=TOP_K,
+        top_p=TOP_P,
+        speed_factor=SPEED,
     )
     gpt_w, sovits_w = _discover_weights()
     if gpt_w and sovits_w:
