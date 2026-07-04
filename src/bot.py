@@ -62,7 +62,7 @@ SPEED = float(os.getenv("SPEED", "1.0"))
 # Output polish: ffmpeg filter chain applied to the generated audio before it
 # becomes a voice note. Removes low rumble, denoises hiss/air, and normalizes
 # loudness -> crisper, "crystal clear" result. Toggle with AUDIO_CLEANUP=0.
-AUDIO_CLEANUP = os.getenv("AUDIO_CLEANUP", "1") not in ("0", "false", "False", "no")
+AUDIO_CLEANUP = os.getenv("AUDIO_CLEANUP", "0") not in ("0", "false", "False", "no")
 AUDIO_FILTERS = os.getenv(
     "AUDIO_FILTERS",
     "highpass=f=85,afftdn=nf=-25,loudnorm=I=-16:TP=-1.5:LRA=11",

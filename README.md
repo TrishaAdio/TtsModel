@@ -43,6 +43,18 @@ python src/prepare_dataset.py --input-dir data/raw --output data/dataset/speaker
 # 4) serve + integrate                (src/tts_client.py)
 ```
 
+## Best quality: clean retrain (one command)
+If the voice sounds noisy/rough, the cause is almost always the **source audio**.
+Denoise it and retrain in a single step:
+```bash
+cd ~/TtsModel && git pull && source venv/bin/activate
+./retrain_clean.sh          # denoise -> re-slice -> retrain (fine-tuned, clean)
+```
+It denoises `data/raw` (neural FRCRN if available, else `noisereduce`), re-slices,
+and trains a fine-tuned model on the cleaned audio. At the end it prints the exact
+`export ... && python src/bot.py` command to run the bot on the new weights.
+The single biggest quality lever is still cleaner/longer source recordings.
+
 ## No open ports? Train headless
 If you can't use the WebUI (ports closed), run the whole thing from the CLI:
 ```bash
