@@ -28,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tts_client import VoiceTTS  # noqa: E402
+from elevenlabs_client import ElevenLabsTTS  # noqa: E402
 
 try:
     from aiogram import Bot, Dispatcher, F
@@ -44,6 +45,20 @@ except ImportError:
 REPO = Path(__file__).resolve().parent.parent
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+
+# Which TTS engine to use: "elevenlabs" (hosted, high quality) or "gptsovits"
+# (self-hosted). Default elevenlabs if an API key is present, else gptsovits.
+TTS_BACKEND = os.getenv(
+    "TTS_BACKEND",
+    "elevenlabs" if os.getenv("ELEVENLABS_API_KEY") else "gptsovits",
+).strip().lower()
+
+# --- ElevenLabs backend config ---
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "").strip()
+ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "").strip()
+ELEVENLABS_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2").strip()
+
+# --- GPT-SoVITS backend config ---
 TTS_BASE_URL = os.getenv("TTS_BASE_URL", "http://127.0.0.1:9880")
 TEXT_LANG = os.getenv("TEXT_LANG", "en")
 PROMPT_LANG = os.getenv("PROMPT_LANG", TEXT_LANG)
@@ -154,7 +169,25 @@ def wav_to_voice_ogg(wav_bytes: bytes) -> bytes:
     return proc.stdout
 
 
-def build_tts() -> VoiceTTS:
+def build_synth():
+    """Return the active TTS backend (must expose .synthesize(text)->bytes,
+    .ready()->bool, .describe()->str)."""
+    if TTS_BACKEND == "elevenlabs":
+        synth = ElevenLabsTTS(
+            api_key=ELEVENLABS_API_KEY,
+            voice_id=ELEVENLABS_VOICE_ID,
+            model_id=ELEVENLABS_MODEL,
+        )
+        if not synth.ready():
+            print("[bot] ERROR: TTS_BACKEND=elevenlabs but ELEVENLABS_API_KEY / "
+                  "ELEVENLABS_VOICE_ID are not set.")
+        else:
+            print(f"[bot] backend: {synth.describe()}")
+        return synth
+    return build_gptsovits()
+
+
+def build_gptsovits() -> VoiceTTS:
     ref, text = _auto_reference()
     tts = VoiceTTS(
         base_url=TTS_BASE_URL,
@@ -181,7 +214,13 @@ def build_tts() -> VoiceTTS:
 
 
 dp = Dispatcher()
-_tts: VoiceTTS  # set in main()
+_synth = None  # active backend, set in main()
+
+
+def _synth_ready(s) -> bool:
+    if hasattr(s, "ready"):
+        return s.ready()
+    return bool(getattr(s, "ref_audio_path", "") and getattr(s, "prompt_text", ""))
 
 
 def _allowed_user(message: Message) -> bool:
@@ -223,18 +262,25 @@ async def on_text(message: Message) -> None:
         await message.reply(f"Message too long ({len(text)} chars). Keep it under {MAX_CHARS}.")
         return
 
-    if not _tts.ref_audio_path or not _tts.prompt_text:
-        await message.reply(
-            "No reference voice configured. Set <code>REF_AUDIO_PATH</code> and "
-            "<code>REF_TEXT</code> (or prepare a dataset first)."
-        )
+    if not _synth_ready(_synth):
+        if TTS_BACKEND == "elevenlabs":
+            await message.reply(
+                "ElevenLabs not configured. Set <code>ELEVENLABS_API_KEY</code> and "
+                "<code>ELEVENLABS_VOICE_ID</code>."
+            )
+        else:
+            await message.reply(
+                "No reference voice configured. Set <code>REF_AUDIO_PATH</code> and "
+                "<code>REF_TEXT</code> (or prepare a dataset first)."
+            )
         return
 
     await message.bot.send_chat_action(message.chat.id, ChatAction.RECORD_VOICE)
     try:
-        # sync client + ffmpeg run off the event loop
-        wav = await asyncio.to_thread(_tts.synthesize, text)
-        ogg = await asyncio.to_thread(wav_to_voice_ogg, wav)
+        # synthesize (wav for GPT-SoVITS, mp3 for ElevenLabs) then encode to a
+        # Telegram voice note; ffmpeg auto-detects the input format.
+        audio = await asyncio.to_thread(_synth.synthesize, text)
+        ogg = await asyncio.to_thread(wav_to_voice_ogg, audio)
     except Exception as e:  # noqa: BLE001
         await message.reply(f"Synthesis failed: <code>{str(e)[:300]}</code>")
         return
@@ -245,18 +291,23 @@ async def on_text(message: Message) -> None:
 
 
 async def _amain() -> None:
-    global _tts
+    global _synth
     if not BOT_TOKEN:
         sys.exit("BOT_TOKEN is not set. export BOT_TOKEN=... and retry.")
 
-    _tts = build_tts()
-    ready = await asyncio.to_thread(_tts.wait_until_ready, 15, 2.0)
-    if not ready:
-        print(f"[bot] WARNING: TTS server not reachable at {TTS_BASE_URL} yet (will retry per-request).")
-    if not _tts.ref_audio_path:
-        print("[bot] WARNING: no reference clip found. Set REF_AUDIO_PATH/REF_TEXT.")
-    else:
-        print(f"[bot] reference clip: {_tts.ref_audio_path}")
+    print(f"[bot] TTS backend: {TTS_BACKEND}")
+    _synth = build_synth()
+
+    if TTS_BACKEND == "gptsovits":
+        reachable = await asyncio.to_thread(_synth.wait_until_ready, 15, 2.0)
+        if not reachable:
+            print(f"[bot] WARNING: TTS server not reachable at {TTS_BASE_URL} yet (will retry per-request).")
+        if getattr(_synth, "ref_audio_path", ""):
+            print(f"[bot] reference clip: {_synth.ref_audio_path}")
+        else:
+            print("[bot] WARNING: no reference clip found. Set REF_AUDIO_PATH/REF_TEXT.")
+    elif not _synth_ready(_synth):
+        print("[bot] WARNING: ElevenLabs not configured (ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID).")
 
     bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     print("[bot] polling...")

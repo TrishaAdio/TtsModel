@@ -69,7 +69,22 @@ pipeline: `LANG=en` for training, `TEXT_LANG=en` for the bot, and type Hinglish
 in **Latin script**. The clone still reproduces the Hindi sounds acoustically
 from your clips. Details in `docs/HEADLESS.md`.
 
-## Telegram bot
+## Easiest / best quality: ElevenLabs backend
+For high quality with almost no effort, use the hosted ElevenLabs engine. Clone
+your voice in the ElevenLabs UI (upload a sample), then:
+```bash
+pip install "aiogram>=3.0"          # + ffmpeg
+export BOT_TOKEN="123456:ABC..."
+export ELEVENLABS_API_KEY="..."     # from elevenlabs.io -> API Keys
+export ELEVENLABS_VOICE_ID="..."    # python src/elevenlabs_client.py --list  to find it
+python src/bot.py                   # backend auto-switches to ElevenLabs when the key is set
+```
+The same bot then replies with voice notes in your ElevenLabs clone. Use it in
+your own chatbot via `from elevenlabs_client import ElevenLabsTTS`.
+
+Switch backends explicitly with `TTS_BACKEND=elevenlabs` or `TTS_BACKEND=gptsovits`.
+
+## Self-hosted Telegram bot (GPT-SoVITS)
 After the model is fine-tuned and the GPT-SoVITS API is running, run a bot that
 turns any text you send into a voice note in the trained voice:
 ```bash
