@@ -48,11 +48,17 @@ TEXT_LANG = os.getenv("TEXT_LANG", "en")
 PROMPT_LANG = os.getenv("PROMPT_LANG", TEXT_LANG)
 
 # Reference clip + its transcript (GPT-SoVITS needs these at inference time).
-# If REF_AUDIO_PATH isn't set, auto-pick the first prepared segment.
+# If REF_AUDIO_PATH isn't set, auto-pick the LONGEST prepared segment (a good
+# ~10s reference) -- never the first/shortest, which can make the model emit
+# EOS immediately and return near-silent audio.
 REF_AUDIO_PATH = os.getenv("REF_AUDIO_PATH", "").strip()
 REF_TEXT = os.getenv("REF_TEXT", "").strip()
+# Where to look up a clip's transcript (ASR .list). Auto-searched if unset.
+REF_LIST = os.getenv("REF_LIST", "").strip()
 
 # Optional: point the server at your fine-tuned checkpoints on startup.
+# If unset, auto-discover the newest speaker1 weights under GSV_DIR.
+GSV_DIR = os.path.expanduser(os.getenv("GSV_DIR", "~/GPT-SoVITS"))
 GPT_WEIGHTS = os.getenv("GPT_WEIGHTS", "").strip()
 SOVITS_WEIGHTS = os.getenv("SOVITS_WEIGHTS", "").strip()
 
@@ -63,19 +69,55 @@ ALLOWED_USER_IDS = {int(x) for x in _allowed.split(",") if x.strip().isdigit()} 
 MAX_CHARS = int(os.getenv("MAX_CHARS", "600"))  # guardrail on very long messages
 
 
+def _lookup_transcript(basename: str) -> str:
+    """Find a clip's transcript by basename in an ASR .list file."""
+    lists = []
+    if REF_LIST:
+        lists.append(REF_LIST)
+    lists += glob.glob(os.path.join(GSV_DIR, "output", "asr_opt", "*.list"))
+    lists += glob.glob(str(REPO / "**" / "*.list"), recursive=True)
+    for lp in lists:
+        try:
+            with open(lp, encoding="utf-8") as f:
+                for line in f:
+                    parts = line.rstrip("\n").split("|")
+                    if len(parts) >= 4 and os.path.basename(parts[0]) == basename:
+                        return parts[3].strip()
+        except OSError:
+            continue
+    return ""
+
+
 def _auto_reference() -> tuple[str, str]:
-    """Best-effort default reference clip + transcript when not configured."""
+    """Best-effort default reference clip + transcript when not configured.
+
+    Picks the LONGEST prepared clip (largest file == longest, since prep writes
+    a uniform 32kHz mono format capped at 10s) rather than the first one, which
+    is often too short and causes immediate-EOS / near-silent output.
+    """
     ref = REF_AUDIO_PATH
     if not ref:
-        candidates = sorted(glob.glob(str(REPO / "data" / "dataset" / "**" / "*.wav"), recursive=True))
-        ref = candidates[0] if candidates else ""
+        candidates = glob.glob(str(REPO / "data" / "dataset" / "**" / "*.wav"), recursive=True)
+        ref = max(candidates, key=os.path.getsize) if candidates else ""
     text = REF_TEXT
     if not text and ref:
-        # look for a sidecar transcript: seg_0007.txt next to seg_0007.wav
+        # 1) sidecar transcript next to the wav (seg_0007.txt), else 2) ASR .list
         side = Path(ref).with_suffix(".txt")
-        if side.is_file():
-            text = side.read_text(encoding="utf-8").strip()
+        text = side.read_text(encoding="utf-8").strip() if side.is_file() else _lookup_transcript(os.path.basename(ref))
     return ref, text
+
+
+def _discover_weights() -> tuple[str, str]:
+    """Auto-find newest fine-tuned weights under GSV_DIR when not set via env."""
+    gpt = GPT_WEIGHTS
+    sovits = SOVITS_WEIGHTS
+    if not gpt:
+        cks = glob.glob(os.path.join(GSV_DIR, "GPT_weights*", "*.ckpt"))
+        gpt = max(cks, key=os.path.getmtime) if cks else ""
+    if not sovits:
+        pth = glob.glob(os.path.join(GSV_DIR, "SoVITS_weights*", "*.pth"))
+        sovits = max(pth, key=os.path.getmtime) if pth else ""
+    return gpt, sovits
 
 
 def wav_to_voice_ogg(wav_bytes: bytes) -> bytes:
@@ -103,12 +145,15 @@ def build_tts() -> VoiceTTS:
         prompt_lang=PROMPT_LANG,
         text_lang=TEXT_LANG,
     )
-    if GPT_WEIGHTS and SOVITS_WEIGHTS:
+    gpt_w, sovits_w = _discover_weights()
+    if gpt_w and sovits_w:
         try:
-            tts.set_weights(GPT_WEIGHTS, SOVITS_WEIGHTS)
-            print(f"[bot] loaded weights: {Path(GPT_WEIGHTS).name} + {Path(SOVITS_WEIGHTS).name}")
+            tts.set_weights(gpt_w, sovits_w)
+            print(f"[bot] loaded weights: {Path(gpt_w).name} + {Path(sovits_w).name}")
         except Exception as e:  # noqa: BLE001
-            print(f"[bot] WARNING: could not set weights: {e}")
+            print(f"[bot] WARNING: could not set weights ({e}); using the server's current voice")
+    else:
+        print("[bot] no fine-tuned weights found/set; using the server's current voice")
     return tts
 
 

@@ -63,14 +63,20 @@ turns any text you send into a voice note in the trained voice:
 ```bash
 pip install "aiogram>=3.0"      # and ensure ffmpeg is installed
 export BOT_TOKEN="123456:ABC..."   # the ONLY required setting
-# optional (defaults shown):
-# export TTS_BASE_URL="http://127.0.0.1:9880"
-# export REF_AUDIO_PATH="data/dataset/speaker1/seg_0007.wav"
-# export REF_TEXT="exact transcript of that clip"
-# export GPT_WEIGHTS="/path/speaker1-e15.ckpt"
-# export SOVITS_WEIGHTS="/path/speaker1_e10_s....pth"
-# export ALLOWED_USER_IDS="11111111,22222222"   # restrict who can use it
 python src/bot.py
+```
+With just `BOT_TOKEN`, the bot auto-selects the **longest** prepared clip as the
+reference (a good ~10s prompt), auto-loads its transcript from the ASR `.list`,
+and auto-discovers the newest fine-tuned weights under `~/GPT-SoVITS`. Override
+any of it if you want:
+```bash
+# export TTS_BASE_URL="http://127.0.0.1:9880"
+# export GSV_DIR="$HOME/GPT-SoVITS"                 # where weights + .list live
+# export REF_AUDIO_PATH="data/dataset/speaker1/seg_0048.wav"
+# export REF_TEXT="exact transcript of that clip"
+# export GPT_WEIGHTS="/path/speaker1-e12.ckpt"
+# export SOVITS_WEIGHTS="/path/speaker1_e12_s....pth"
+# export ALLOWED_USER_IDS="11111111,22222222"       # restrict who can use it
 ```
 Send the bot text -> it replies with a voice note (OGG/Opus) spoken in your
 cloned voice.
