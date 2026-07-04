@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import glob
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -48,8 +49,11 @@ TEXT_LANG = os.getenv("TEXT_LANG", "en")
 PROMPT_LANG = os.getenv("PROMPT_LANG", TEXT_LANG)
 
 # Sampling / segmentation knobs (env-overridable for quick tuning).
-# TEXT_SPLIT "cut0" = don't split -> one continuous utterance (no choppy restarts).
-TEXT_SPLIT = os.getenv("TEXT_SPLIT", "cut0").strip()
+# TEXT_SPLIT controls how the API segments text before synthesis.
+#   cut0 = no split (can DROP lines on multi-line/long text)
+#   cut2 = split every ~50 chars  -> reliable full coverage, still smooth (default)
+#   cut1 = split every 4 sentences,  cut3/cut4/cut5 = split on punctuation
+TEXT_SPLIT = os.getenv("TEXT_SPLIT", "cut2").strip()
 TEMPERATURE = float(os.getenv("TEMPERATURE", "1.0"))
 TOP_K = int(os.getenv("TOP_K", "15"))
 TOP_P = float(os.getenv("TOP_P", "1.0"))
@@ -195,12 +199,24 @@ async def on_start(message: Message) -> None:
     )
 
 
+def _normalize_text(raw: str) -> str:
+    """Turn line breaks into sentence boundaries and collapse whitespace, so the
+    TTS splitter covers every line (cut0 on multi-line text tends to drop lines)."""
+    t = raw.strip()
+    # blank lines / newlines -> sentence break, so each line gets synthesized
+    t = re.sub(r"[ \t]*\n[ \t\n]*", ". ", t)
+    t = re.sub(r"[ \t]+", " ", t)
+    # avoid ".." pileups from lines that already ended in punctuation
+    t = re.sub(r"([.!?])\.\s", r"\1 ", t)
+    return t.strip()
+
+
 @dp.message(F.text & ~F.text.startswith("/"))
 async def on_text(message: Message) -> None:
     if not _allowed_user(message):
         return
 
-    text = (message.text or "").strip()
+    text = _normalize_text(message.text or "")
     if not text:
         return
     if len(text) > MAX_CHARS:
