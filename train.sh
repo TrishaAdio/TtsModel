@@ -50,10 +50,12 @@ DATASET_DIR="$(readlink -f "$DATASET_DIR")"
 PY="python"
 PM="GPT_SoVITS/pretrained_models"
 
-# GPT-SoVITS subprocess scripts (tools.*, GPT_SoVITS.*) import relative to the
-# repo root. The WebUI puts it on sys.path via a .pth file; headless we set it
-# explicitly. This script must be run FROM the GPT-SoVITS repo root.
-export PYTHONPATH="$(pwd):${PYTHONPATH:-}"
+# GPT-SoVITS subprocess scripts import packages from two roots:
+#   - repo root        -> tools.*, GPT_SoVITS.*
+#   - GPT_SoVITS/ dir  -> text, AR, module, feature_extractor, utils
+# The WebUI puts both on sys.path via a .pth file; headless we set them here.
+# This script must be run FROM the GPT-SoVITS repo root.
+export PYTHONPATH="$(pwd):$(pwd)/GPT_SoVITS:${PYTHONPATH:-}"
 EXP_DIR="logs/${EXP_NAME}"
 
 # pretrained model paths for the chosen version (v2 defaults)
